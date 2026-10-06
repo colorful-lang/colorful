@@ -1,0 +1,156 @@
+### Colorful standard library: path
+### Short prefix: path.join("src", "main.cf"), path.basename(p), path.extension(p)
+###
+### Paths are handled as plain strings, the way the rest of the toolchain does:
+### "/" is the separator on every platform, and a Windows "\" in the input is
+### normalised to "/" on the way in. Nothing here touches the file system, so it
+### works on paths that do not exist yet.
+
+module path
+
+
+### The separator every function in this module produces.
+def sep() -> str:
+    return "/"
+
+
+### The last position of `needle` inside `text`, or -1 when it is not there.
+def last_index(text: str, needle: str) -> int:
+    n = len(needle)
+    if n == 0:
+        return -1
+    i = len(text) - n
+    while i >= 0:
+        if core.slice(text, i, i + n) == needle:
+            return i
+        i -= 1
+    return -1
+
+
+### True for "/a", "/a/b", "C:/a" and "C:\a".
+def is_absolute(p: str) -> bool:
+    if p.startswith("/"):
+        return True
+    if len(p) >= 2:
+        if p[1] == ":":
+            return True
+    return False
+
+
+### "src/./ui//main.cf" -> "src/ui/main.cf" and "a/b/../c" -> "a/c". A path that
+### boils down to nothing becomes ".".
+def normalize(p: str) -> str:
+    text = p.replace("\\", "/")
+    absolute = text.startswith("/")
+    parts = text.split("/")
+    out = []
+    for part in parts:
+        if part == "" or part == ".":
+            continue
+        if part == ".." and absolute:
+            continue
+        if part == ".." and len(out) > 0 and out[len(out) - 1] != "..":
+            out.pop()
+            continue
+        out.append(part)
+    joined = "/".join(out)
+    if absolute:
+        return "/" + joined
+    if joined == "":
+        return "."
+    return joined
+
+
+### Joins two fragments with exactly one separator; an absolute `b` wins.
+def join(a: str, b: str) -> str:
+    if b == "":
+        return normalize(a)
+    if a == "":
+        return normalize(b)
+    if is_absolute(b):
+        return normalize(b)
+    if a.endswith("/"):
+        return normalize(a + b)
+    return normalize(a + "/" + b)
+
+
+### Joins a list of fragments left to right.
+def join_all(parts: list[str]) -> str:
+    out = ""
+    for part in parts:
+        out = join(out, part)
+    return out
+
+
+### The last component: "/a/b/c.txt" -> "c.txt", "/a/b/" -> "b".
+def basename(p: str) -> str:
+    text = normalize(p)
+    i = last_index(text, "/")
+    if i < 0:
+        return text
+    return core.slice(text, i + 1, len(text))
+
+
+### Everything before the last component: "/a/b/c.txt" -> "/a/b".
+def dirname(p: str) -> str:
+    text = normalize(p)
+    i = last_index(text, "/")
+    if i < 0:
+        return "."
+    if i == 0:
+        return "/"
+    return core.slice(text, 0, i)
+
+
+### The final extension including the dot, or "" when there is none. A leading
+### dot does not count, so ".gitignore" has no extension.
+def extension(p: str) -> str:
+    b = basename(p)
+    i = last_index(b, ".")
+    if i <= 0:
+        return ""
+    return core.slice(b, i, len(b))
+
+
+### The basename without its extension: "src/main.cf" -> "main".
+def stem(p: str) -> str:
+    b = basename(p)
+    i = last_index(b, ".")
+    if i <= 0:
+        return b
+    return core.slice(b, 0, i)
+
+
+### The path with its extension replaced, or added when there was none.
+def with_extension(p: str, ext: str) -> str:
+    d = dirname(p)
+    name = stem(p) + ext
+    if d == ".":
+        return name
+    return join(d, name)
+
+
+### The components of a normalised path, without the separator characters:
+### "src/ui/main.cf" -> ["src", "ui", "main.cf"].
+def parts_of(p: str) -> list[str]:
+    out = []
+    for part in normalize(p).split("/"):
+        if part != "":
+            out.append(part)
+    return out
+
+
+### The absolute form of a relative path, resolved against the process working
+### directory. An already absolute path is only normalised.
+def absolute(p: str) -> str:
+    if is_absolute(p):
+        return normalize(p)
+    base = env.cwd()
+    if base == "":
+        return normalize(p)
+    return join(base, p)
+
+
+### The process working directory; "" when the OS refuses to report it.
+def cwd() -> str:
+    return env.cwd()

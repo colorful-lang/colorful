@@ -1,0 +1,15 @@
+{
+  "name": "colorful",
+  "version": "0.1.0",
+  "kind": "colorful-library",
+  "abi": "c11-colorful-0.1",
+  "built": "2026-10-05T21:55:21",
+  "nativeStatic": "libcolorful.lib",
+  "shared": { "dll": "colorful.dll", "importLibrary": "colorful.lib" },
+  "moduleArchive": "libcolorful.cll",
+  "encrypted": true,
+  "include": ["include/runtime.h", "include/gui_native.h"],
+  "fonts": ["Roboto-Regular.ttf", "Roboto-Medium.ttf", "Roboto-Bold.ttf", "Roboto-Light.ttf", "Roboto-Thin.ttf", "Roboto-Black.ttf", "MaterialSymbols-Regular.ttf", "MaterialSymbols-Medium.ttf", "MaterialSymbols-Bold.ttf", "MaterialSymbols-Light.ttf", "MaterialSymbols-Thin.ttf", "MaterialSymbols-SemiBold.ttf", "MaterialSymbols-ExtraLight.ttf"],
+  "systemLibraries": ["ws2_32.lib", "user32.lib", "gdi32.lib", "ole32.lib", "d2d1.lib", "dwrite.lib", "windowscodecs.lib", "shcore.lib"],
+  "modules": ["cli", "collections", "core", "encoding", "env", "fs", "http", "io", "json", "log", "math", "net", "path", "random", "regex", "strings", "test", "time", "url", "gui", "widgets"]
+}

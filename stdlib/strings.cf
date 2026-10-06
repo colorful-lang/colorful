@@ -1,0 +1,188 @@
+### Colorful standard library: strings
+### Short prefix: strings.pad_left(text, 8, "0"), strings.format_float(v, 2)
+###
+### Text helpers that the string *methods* do not cover. Every method the
+### language already provides (upper/lower/strip/split/join/replace/startswith/
+### endswith/contains/find) is used as a method here; this module only adds what
+### is missing: padding, measuring, casing, truncation and number formatting.
+###
+### `fill` arguments are single characters: a multi character fill would make the
+### result wider than asked for.
+
+module strings
+
+
+### True when the text is empty or only whitespace.
+def is_blank(text: str) -> bool:
+    return len(text.strip()) == 0
+
+
+### True when every character is an ASCII digit.
+def is_digit(text: str) -> bool:
+    if len(text) == 0:
+        return False
+    i = 0
+    while i < len(text):
+        if not "0123456789".contains(text[i]):
+            return False
+        i += 1
+    return True
+
+
+### The text repeated until it is at least `width` characters, on the left.
+def pad_left(text: str, width: int, fill: str) -> str:
+    need = width - len(text)
+    if need <= 0:
+        return text
+    return core.repeat(fill, need) + text
+
+
+### The text padded on the right.
+def pad_right(text: str, width: int, fill: str) -> str:
+    need = width - len(text)
+    if need <= 0:
+        return text
+    return text + core.repeat(fill, need)
+
+
+### The text centred in `width` characters, the extra character (if any) going
+### to the right.
+def pad_center(text: str, width: int, fill: str) -> str:
+    need = width - len(text)
+    if need <= 0:
+        return text
+    left = need // 2
+    right = need - left
+    return core.repeat(fill, left) + text + core.repeat(fill, right)
+
+
+### The first `width` characters, with `ellipsis` appended when something was
+### dropped. `width` counts the ellipsis.
+def truncate(text: str, width: int, ellipsis: str) -> str:
+    if len(text) <= width:
+        return text
+    keep = width - len(ellipsis)
+    if keep < 0:
+        keep = 0
+    return core.slice(text, 0, keep) + ellipsis
+
+
+### The first character uppercased, the rest untouched.
+def capitalize(text: str) -> str:
+    if len(text) == 0:
+        return text
+    return core.slice(text, 0, 1).upper() + core.slice(text, 1, len(text))
+
+
+### Every space separated word capitalized: "hello world" -> "Hello World".
+def title_case(text: str) -> str:
+    words = text.split(" ")
+    out = []
+    for w in words:
+        out.append(capitalize(w))
+    return " ".join(out)
+
+
+### The text with `prefix` removed when it starts with it.
+def trim_prefix(text: str, prefix: str) -> str:
+    if text.startswith(prefix):
+        return core.slice(text, len(prefix), len(text))
+    return text
+
+
+### The text with `suffix` removed when it ends with it.
+def trim_suffix(text: str, suffix: str) -> str:
+    if suffix != "" and text.endswith(suffix):
+        return core.slice(text, 0, len(text) - len(suffix))
+    return text
+
+
+### How many times `needle` occurs, counting non-overlapping matches.
+def count(text: str, needle: str) -> int:
+    if needle == "":
+        return 0
+    total = 0
+    rest = text
+    i = rest.find(needle)
+    while i >= 0:
+        total += 1
+        rest = core.slice(rest, i + len(needle), len(rest))
+        i = rest.find(needle)
+    return total
+
+
+### True when the text contains any of `needles`.
+def contains_any(text: str, needles: list[str]) -> bool:
+    for n in needles:
+        if text.contains(n):
+            return True
+    return False
+
+
+### The text split into lines, with a trailing "\r" removed so Windows and Unix
+### files read the same.
+def lines(text: str) -> list[str]:
+    raw = text.split("\n")
+    out = []
+    for l in raw:
+        out.append(trim_suffix(l, "\r"))
+    return out
+
+
+### Every line prefixed with `spaces` spaces.
+def indent(text: str, spaces: int) -> str:
+    pad = core.repeat(" ", spaces)
+    out = lines(text)
+    res = []
+    for l in out:
+        if len(l) == 0:
+            res.append(l)
+        else:
+            res.append(pad + l)
+    return "\n".join(res)
+
+
+### A float with exactly `decimals` digits after the dot. The scaling is done on
+### integers, so the digits are what they say they are - `str(value)` alone would
+### follow the runtime's own float formatting.
+def format_float(value: float, decimals: int) -> str:
+    if decimals <= 0:
+        return str(int(math.round(value)))
+    p = math.ipow(10, decimals)
+    scaled = int(math.round(value * float(p)))
+    negative = scaled < 0
+    if negative:
+        scaled = -scaled
+    whole = scaled // p
+    frac = scaled % p
+    digits = str(frac)
+    out = str(whole) + "."
+    i = len(digits)
+    while i < decimals:
+        out += "0"
+        i += 1
+    out += digits
+    if negative:
+        return "-" + out
+    return out
+
+
+### An integer with thousands separators: 1234567 -> "1,234,567".
+def thousands(value: int) -> str:
+    negative = value < 0
+    v = value
+    if negative:
+        v = -v
+    digits = str(v)
+    out = ""
+    i = len(digits) - 1
+    seen = 0
+    while i >= 0:
+        out = digits[i] + out
+        seen += 1
+        if seen % 3 == 0 and i > 0:
+            out = "," + out
+        i -= 1
+    if negative:
+        return "-" + out
+    return out

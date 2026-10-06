@@ -1,0 +1,61 @@
+### Colorful standard library: io
+### Short prefix: io.read("config.txt"), io.write(path, data), io.read_line()
+### Functions declared `extern` are C ABI symbols from runtime/runtime.c. They
+### may fail: a failure raises an exception that the caller can catch with
+### try/except. The compiler knows these calls unwind and generates the error
+### tests (see docs/spec.md, section "exceptions").
+
+module io
+
+extern def cf_io_read(path: str) -> str
+extern def cf_io_write(path: str, data: str) -> int
+extern def cf_io_append(path: str, data: str) -> int
+extern def cf_io_read_line() -> str
+extern def cf_io_print(text: str) -> int
+
+
+def read(path: str) -> str:
+    return cf_io_read(path)
+
+
+def write(path: str, data: str) -> int:
+    return cf_io_write(path, data)
+
+
+def append(path: str, data: str) -> int:
+    return cf_io_append(path, data)
+
+
+def read_line() -> str:
+    return cf_io_read_line()
+
+
+def write_line(path: str, line: str) -> int:
+    return cf_io_append(path, line + "\n")
+
+
+### read a whole file and split it into lines
+def read_lines(path: str) -> list[str]:
+    text = cf_io_read(path)
+    return text.split("\n")
+
+
+### read a file, returning a default value when it does not exist
+def read_or(path: str, fallback: str) -> str:
+    try:
+        return cf_io_read(path)
+    except IoError:
+        return fallback
+
+
+def exists(path: str) -> bool:
+    try:
+        cf_io_read(path)
+        return True
+    except IoError:
+        return False
+
+
+def write_lines(path: str, lines: list[str]) -> int:
+    text = "\n".join(lines)
+    return cf_io_write(path, text)

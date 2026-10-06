@@ -1,0 +1,345 @@
+### Colorful standard library: json
+### Short prefix: json.parse(text), json.stringify(value)
+###
+### Colorful is statically typed and has no union types, so a JSON document is
+### represented by the explicit, statically typed record `JsonValue` with a
+### `kind` discriminator ("null" | "bool" | "num" | "str" | "list" | "dict").
+### No dynamic type tags are needed at run time: `kind` is an ordinary string
+### field and every access is checked by the compiler.
+
+module json
+
+record JsonValue:
+    kind: str
+    flag: bool
+    num: float
+    text: str
+    items: list[JsonValue]
+    keys: list[str]
+    values: list[JsonValue]
+
+
+record JsonParser:
+    text: str
+    pos: int
+
+
+# ---------------------------------------------------------------- builders --
+def null_value() -> JsonValue:
+    return JsonValue("null", False, 0.0, "", [], [], [])
+
+
+def bool_value(v: bool) -> JsonValue:
+    return JsonValue("bool", v, 0.0, "", [], [], [])
+
+
+def num_value(v: float) -> JsonValue:
+    return JsonValue("num", False, v, "", [], [], [])
+
+
+def str_value(v: str) -> JsonValue:
+    return JsonValue("str", False, 0.0, v, [], [], [])
+
+
+def list_value(items: list[JsonValue]) -> JsonValue:
+    return JsonValue("list", False, 0.0, "", items, [], [])
+
+
+def object_value(keys: list[str], values: list[JsonValue]) -> JsonValue:
+    return JsonValue("dict", False, 0.0, "", [], keys, values)
+
+
+# ----------------------------------------------------------------- accessors
+def is_null(v: JsonValue) -> bool:
+    return v.kind == "null"
+
+
+def as_str(v: JsonValue) -> str:
+    if v.kind != "str":
+        raise ValueError("json: the value is not a string")
+    return v.text
+
+
+def as_float(v: JsonValue) -> float:
+    if v.kind != "num":
+        raise ValueError("json: the value is not a number")
+    return v.num
+
+
+def as_int(v: JsonValue) -> int:
+    if v.kind != "num":
+        raise ValueError("json: the value is not a number")
+    return int(v.num)
+
+
+def as_bool(v: JsonValue) -> bool:
+    if v.kind != "bool":
+        raise ValueError("json: the value is not a boolean")
+    return v.flag
+
+
+def size(v: JsonValue) -> int:
+    if v.kind == "list":
+        return len(v.items)
+    if v.kind == "dict":
+        return len(v.keys)
+    return 0
+
+
+def has(v: JsonValue, key: str) -> bool:
+    if v.kind != "dict":
+        return False
+    return v.keys.index(key) >= 0
+
+
+def get(v: JsonValue, key: str) -> JsonValue:
+    if v.kind != "dict":
+        raise ValueError("json: the value is not an object")
+    i = v.keys.index(key)
+    if i < 0:
+        raise KeyError("json: missing key '" + key + "'")
+    return v.values[i]
+
+
+def at(v: JsonValue, index: int) -> JsonValue:
+    if v.kind != "list":
+        raise ValueError("json: the value is not a list")
+    if index < 0 or index >= len(v.items):
+        raise IndexError("json: list index out of range")
+    return v.items[index]
+
+
+# ------------------------------------------------------------------- parser --
+def hex_value(c: str) -> int:
+    lower = c.lower()
+    i = "0123456789abcdef".find(lower)
+    if i < 0:
+        return 0
+    return i
+
+
+def JsonParser.peek(self) -> str:
+    if self.pos >= len(self.text):
+        return ""
+    return self.text[self.pos]
+
+
+def JsonParser.skip_ws(self):
+    while self.pos < len(self.text):
+        c = self.text[self.pos]
+        if c == " " or c == "\t" or c == "\n" or c == "\r":
+            self.pos += 1
+        else:
+            break
+
+
+def JsonParser.expect_word(self, word: str):
+    i = 0
+    while i < len(word):
+        if self.peek() != word[i]:
+            raise ValueError("json: invalid literal, expected " + word)
+        self.pos += 1
+        i += 1
+
+
+def JsonParser.parse_string(self) -> str:
+    self.pos += 1  # opening quote
+    out = ""
+    while self.pos < len(self.text):
+        c = self.text[self.pos]
+        self.pos += 1
+        if c == "\"":
+            return out
+        if c == "\\":
+            e = self.peek()
+            self.pos += 1
+            if e == "n":
+                out += "\n"
+            elif e == "t":
+                out += "\t"
+            elif e == "r":
+                out += "\r"
+            elif e == "b":
+                out += "\b"
+            elif e == "f":
+                out += "\f"
+            elif e == "u":
+                code = 0
+                k = 0
+                while k < 4:
+                    code = code * 16 + hex_value(self.peek())
+                    self.pos += 1
+                    k += 1
+                out += core.chr(code)
+            else:
+                out += e
+        else:
+            out += c
+    raise ValueError("json: unterminated string")
+
+
+def JsonParser.parse_number(self) -> float:
+    start = self.pos
+    while self.pos < len(self.text):
+        c = self.text[self.pos]
+        if (c >= "0" and c <= "9") or c == "-" or c == "+" or c == "." or c == "e" or c == "E":
+            self.pos += 1
+        else:
+            break
+    return float(core.slice(self.text, start, self.pos))
+
+
+def JsonParser.parse_array(self) -> JsonValue:
+    self.pos += 1  # '['
+    items = []
+    self.skip_ws()
+    if self.peek() == "]":
+        self.pos += 1
+        return list_value(items)
+    while True:
+        items.append(self.parse_value())
+        self.skip_ws()
+        c = self.peek()
+        if c == ",":
+            self.pos += 1
+            continue
+        if c == "]":
+            self.pos += 1
+            return list_value(items)
+        raise ValueError("json: expected ',' or ']' in an array")
+
+
+def JsonParser.parse_object(self) -> JsonValue:
+    self.pos += 1  # '{'
+    keys = []
+    values = []
+    self.skip_ws()
+    if self.peek() == "}":
+        self.pos += 1
+        return object_value(keys, values)
+    while True:
+        self.skip_ws()
+        if self.peek() != "\"":
+            raise ValueError("json: expected an object key")
+        keys.append(self.parse_string())
+        self.skip_ws()
+        if self.peek() != ":":
+            raise ValueError("json: expected ':' after an object key")
+        self.pos += 1
+        values.append(self.parse_value())
+        self.skip_ws()
+        c = self.peek()
+        if c == ",":
+            self.pos += 1
+            continue
+        if c == "}":
+            self.pos += 1
+            return object_value(keys, values)
+        raise ValueError("json: expected ',' or '}' in an object")
+
+
+def JsonParser.parse_value(self) -> JsonValue:
+    self.skip_ws()
+    if self.pos >= len(self.text):
+        raise ValueError("json: unexpected end of input")
+    c = self.text[self.pos]
+    if c == "{":
+        return self.parse_object()
+    if c == "[":
+        return self.parse_array()
+    if c == "\"":
+        return str_value(self.parse_string())
+    if c == "t":
+        self.expect_word("true")
+        return bool_value(True)
+    if c == "f":
+        self.expect_word("false")
+        return bool_value(False)
+    if c == "n":
+        self.expect_word("null")
+        return null_value()
+    return num_value(self.parse_number())
+
+
+def parse(text: str) -> JsonValue:
+    p = JsonParser(text, 0)
+    value = p.parse_value()
+    p.skip_ws()
+    return value
+
+
+# ---------------------------------------------------------------- stringify -
+def quote(text: str) -> str:
+    out = "\""
+    i = 0
+    while i < len(text):
+        ch = text[i]
+        if ch == "\"":
+            out += "\\\""
+        elif ch == "\\":
+            out += "\\\\"
+        elif ch == "\n":
+            out += "\\n"
+        elif ch == "\t":
+            out += "\\t"
+        elif ch == "\r":
+            out += "\\r"
+        else:
+            out += ch
+        i += 1
+    out += "\""
+    return out
+
+
+def stringify(value: JsonValue) -> str:
+    if value.kind == "null":
+        return "null"
+    if value.kind == "bool":
+        if value.flag:
+            return "true"
+        return "false"
+    if value.kind == "num":
+        return str(value.num)
+    if value.kind == "str":
+        return quote(value.text)
+    if value.kind == "list":
+        parts = []
+        for item in value.items:
+            parts.append(stringify(item))
+        return "[" + ",".join(parts) + "]"
+    parts = []
+    i = 0
+    while i < len(value.keys):
+        parts.append(quote(value.keys[i]) + ":" + stringify(value.values[i]))
+        i += 1
+    return "{" + ",".join(parts) + "}"
+
+
+def pretty(value: JsonValue, indent: int) -> str:
+    pad = core.repeat("  ", indent)
+    inner = core.repeat("  ", indent + 1)
+    if value.kind == "list":
+        if len(value.items) == 0:
+            return "[]"
+        out = "[\n"
+        i = 0
+        while i < len(value.items):
+            out += inner + pretty(value.items[i], indent + 1)
+            if i + 1 < len(value.items):
+                out += ","
+            out += "\n"
+            i += 1
+        return out + pad + "]"
+    if value.kind == "dict":
+        if len(value.keys) == 0:
+            return "{}"
+        out = "{\n"
+        i = 0
+        while i < len(value.keys):
+            out += inner + quote(value.keys[i]) + ": " + pretty(value.values[i], indent + 1)
+            if i + 1 < len(value.keys):
+                out += ","
+            out += "\n"
+            i += 1
+        return out + pad + "}"
+    return stringify(value)

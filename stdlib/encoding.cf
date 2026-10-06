@@ -1,0 +1,162 @@
+### Colorful standard library: encoding
+### Short prefix: encoding.hex("Hi"), encoding.base64("Hi"), encoding.percent("a b")
+###
+### Byte level encodings. Everything walks the bytes of the string, so UTF-8 text
+### is encoded byte by byte, which is exactly what these formats expect. hex() and
+### base64() always produce ASCII; unhex() and unbase64() rebuild the string and
+### round trip exactly for ASCII input.
+
+module encoding
+
+extern def cf_str_ord(text: str, index: int) -> int
+
+
+### The byte at `i` (0..255). String indexes are byte offsets, and reading a one
+### byte slice through cf_str_ord keeps a multi byte character from being
+### decoded twice.
+def byte_at(text: str, index: int) -> int:
+    return cf_str_ord(core.slice(text, index, index + 1), 0)
+
+
+def lower_hex() -> str:
+    return "0123456789abcdef"
+
+
+def upper_hex() -> str:
+    return "0123456789ABCDEF"
+
+
+### "Hi" -> "4869"; every byte becomes two lower case digits.
+def hex(text: str) -> str:
+    d = lower_hex()
+    out = ""
+    i = 0
+    while i < len(text):
+        b = byte_at(text, i)
+        out += core.slice(d, b // 16, b // 16 + 1)
+        out += core.slice(d, b % 16, b % 16 + 1)
+        i += 1
+    return out
+
+
+### One hex digit, or -1 when the character is not one.
+def hex_value(c: str) -> int:
+    i = lower_hex().find(c)
+    if i < 0:
+        i = upper_hex().find(c)
+    return i
+
+
+### The inverse of hex(); raises ValueError on an odd length or a bad digit.
+def unhex(text: str) -> str:
+    if len(text) % 2 != 0:
+        raise ValueError("encoding: unhex() needs an even number of digits")
+    out = ""
+    i = 0
+    while i < len(text):
+        hi = hex_value(core.slice(text, i, i + 1))
+        lo = hex_value(core.slice(text, i + 1, i + 2))
+        if hi < 0 or lo < 0:
+            raise ValueError("encoding: not a hex digit")
+        out += core.chr(hi * 16 + lo)
+        i += 2
+    return out
+
+
+def alphabet() -> str:
+    return "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+
+
+### "Hi" -> "SGk=", "H" -> "SA==", "" -> "".
+def base64(text: str) -> str:
+    a = alphabet()
+    out = ""
+    n = len(text)
+    i = 0
+    while i + 3 <= n:
+        b0 = byte_at(text, i)
+        b1 = byte_at(text, i + 1)
+        b2 = byte_at(text, i + 2)
+        c0 = b0 // 4
+        c1 = (b0 % 4) * 16 + (b1 // 16)
+        c2 = (b1 % 16) * 4 + (b2 // 64)
+        c3 = b2 % 64
+        out += core.slice(a, c0, c0 + 1)
+        out += core.slice(a, c1, c1 + 1)
+        out += core.slice(a, c2, c2 + 1)
+        out += core.slice(a, c3, c3 + 1)
+        i += 3
+    rest = n - i
+    if rest == 1:
+        b0 = byte_at(text, i)
+        c0 = b0 // 4
+        c1 = (b0 % 4) * 16
+        out += core.slice(a, c0, c0 + 1)
+        out += core.slice(a, c1, c1 + 1)
+        out += "=="
+    elif rest == 2:
+        b0 = byte_at(text, i)
+        b1 = byte_at(text, i + 1)
+        c0 = b0 // 4
+        c1 = (b0 % 4) * 16 + (b1 // 16)
+        c2 = (b1 % 16) * 4
+        out += core.slice(a, c0, c0 + 1)
+        out += core.slice(a, c1, c1 + 1)
+        out += core.slice(a, c2, c2 + 1)
+        out += "="
+    return out
+
+
+### The inverse of base64(); "=" padding is ignored.
+def unbase64(text: str) -> str:
+    a = alphabet()
+    out = ""
+    acc = 0
+    bits = 0
+    i = 0
+    while i < len(text):
+        c = core.slice(text, i, i + 1)
+        if c != "=":
+            v = a.find(c)
+            if v < 0:
+                raise ValueError("encoding: not a base64 character: " + c)
+            acc = acc * 64 + v
+            bits += 6
+            if bits >= 8:
+                bits -= 8
+                unit = math.ipow(2, bits)
+                out += core.chr(acc // unit)
+                acc = acc % unit
+        i += 1
+    return out
+
+
+### The RFC 3986 unreserved characters: A-Z a-z 0-9 - . _ ~
+def unreserved(b: int) -> bool:
+    if b >= 48 and b <= 57:
+        return True
+    if b >= 65 and b <= 90:
+        return True
+    if b >= 97 and b <= 122:
+        return True
+    if b == 45 or b == 46 or b == 95 or b == 126:
+        return True
+    return False
+
+
+### Percent encoding, the form used inside a URL: unreserved characters pass
+### through, everything else becomes %XX with upper case digits.
+def percent(text: str) -> str:
+    d = upper_hex()
+    out = ""
+    i = 0
+    while i < len(text):
+        b = byte_at(text, i)
+        if unreserved(b):
+            out += core.chr(b)
+        else:
+            out += "%"
+            out += core.slice(d, b // 16, b // 16 + 1)
+            out += core.slice(d, b % 16, b % 16 + 1)
+        i += 1
+    return out

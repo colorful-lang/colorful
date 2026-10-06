@@ -1,0 +1,92 @@
+### Colorful standard library: log
+### Short prefix: log.file_logger("build", "build/build.log").info("compiling")
+###
+### Timestamped logging on top of time and io. A Logger is an ordinary value the
+### application owns: Colorful modules have no variables by design, so two parts
+### of a program can log to different places without sharing a configuration.
+###
+###     l = log.file_logger("server", "build/server.log")
+###     l.set_level(log.WARN())        # drop DEBUG and INFO from here on
+###     l.info("listening on 8080")
+###     # 2026-10-05 10:00:00 INFO [server] listening on 8080
+
+module log
+
+
+### Level numbers, from most to least verbose. Pass them to set_level.
+def DEBUG() -> int:
+    return 0
+
+
+def INFO() -> int:
+    return 1
+
+
+def WARN() -> int:
+    return 2
+
+
+def ERROR() -> int:
+    return 3
+
+
+record Logger:
+    tag: str
+    level: int
+    path: str
+
+
+def level_name(level: int) -> str:
+    if level == 0:
+        return "DEBUG"
+    if level == 1:
+        return "INFO"
+    if level == 2:
+        return "WARN"
+    return "ERROR"
+
+
+### "2026-10-05 10:00:00", formatted by the runtime's strftime.
+def timestamp() -> str:
+    return time.format(time.now(), "%Y-%m-%d %H:%M:%S")
+
+
+### A logger writing to stdout, at INFO level.
+def logger(tag: str) -> Logger:
+    return Logger(tag, 1, "")
+
+
+### A logger appending to `path`, at INFO level.
+def file_logger(tag: str, path: str) -> Logger:
+    return Logger(tag, 1, path)
+
+
+def Logger.set_level(self, level: int):
+    self.level = level
+
+
+### Writes one line when `level` is at or above the logger's threshold.
+def Logger.emit(self, level: int, message: str):
+    if level < self.level:
+        return
+    line = timestamp() + " " + level_name(level) + " [" + self.tag + "] " + message
+    if self.path == "":
+        print(line)
+    else:
+        io.append(self.path, line + "\n")
+
+
+def Logger.debug(self, message: str):
+    self.emit(0, message)
+
+
+def Logger.info(self, message: str):
+    self.emit(1, message)
+
+
+def Logger.warn(self, message: str):
+    self.emit(2, message)
+
+
+def Logger.error(self, message: str):
+    self.emit(3, message)

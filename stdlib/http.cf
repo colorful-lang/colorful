@@ -1,0 +1,149 @@
+### Colorful standard library: http
+### Short prefix: http.server(8080), http.get("http://localhost:8080/")
+###
+### A blocking, single threaded HTTP/1.1 server built on the socket primitives
+### of the runtime and written in Colorful. Handlers are ordinary functions of
+### type `fn(Request) -> str`, stored in a statically typed dictionary, so a
+### request costs one indirect call - no reflection, no router strings.
+
+module http
+
+extern def cf_net_listen(port: int) -> int
+extern def cf_net_accept(fd: int) -> int
+extern def cf_net_recv(fd: int, maxBytes: int) -> str
+extern def cf_net_send(fd: int, data: str) -> int
+extern def cf_net_close(fd: int)
+extern def cf_net_connect(host: str, port: int) -> int
+
+
+record Request:
+    method: str
+    path: str
+    body: str
+
+
+record Server:
+    port: int
+    fd: int
+    routes: dict[str, fn(Request) -> str]
+
+
+def server(port: int) -> Server:
+    return Server(port, -1, {})
+
+
+def Server.route(self, path: str, handler: fn(Request) -> str):
+    self.routes.set(path, handler)
+
+
+def Server.get(self, path: str, handler: fn(Request) -> str):
+    self.routes.set(path, handler)
+
+
+def Server.post(self, path: str, handler: fn(Request) -> str):
+    self.routes.set(path, handler)
+
+
+def response(body: str) -> str:
+    head = "HTTP/1.1 200 OK\r\nContent-Type: text/plain; charset=utf-8\r\n"
+    length = "Content-Length: " + str(len(body)) + "\r\n"
+    return head + length + "Connection: close\r\n\r\n" + body
+
+
+def not_found() -> str:
+    return "HTTP/1.1 404 Not Found\r\nContent-Length: 9\r\nConnection: close\r\n\r\nnot found"
+
+
+def Server.handle(self, client: int) -> str:
+    raw = cf_net_recv(client, 8192)
+    head = raw.split("\n")[0]
+    parts = head.split(" ")
+    method = "-"
+    path = "/"
+    if len(parts) >= 2:
+        method = parts[0]
+        path = parts[1]
+    if self.routes.has(path):
+        handler = self.routes.get(path)
+        body = handler(Request(method, path, raw))
+        return response(body)
+    return not_found()
+
+
+def Server.start(self):
+    self.fd = cf_net_listen(self.port)
+    print("colorful http server listening on port", self.port)
+    while True:
+        client = cf_net_accept(self.fd)
+        answer = self.handle(client)
+        cf_net_send(client, answer)
+        cf_net_close(client)
+
+
+# ------------------------------------------------------------------ client --
+def get(url: str) -> str:
+    rest = url
+    if rest.startswith("http://"):
+        rest = core.slice(rest, 7, len(rest))
+    slash = rest.find("/")
+    hostport = rest
+    path = "/"
+    if slash >= 0:
+        hostport = core.slice(rest, 0, slash)
+        path = core.slice(rest, slash, len(rest))
+    host = hostport
+    port = 80
+    colon = hostport.find(":")
+    if colon >= 0:
+        host = core.slice(hostport, 0, colon)
+        port = int(core.slice(hostport, colon + 1, len(hostport)))
+    fd = cf_net_connect(host, port)
+    request = ("GET " + path + " HTTP/1.1\r\nHost: " + host +
+               "\r\nUser-Agent: colorful/0.1\r\nConnection: close\r\n\r\n")
+    cf_net_send(fd, request)
+    data = ""
+    while True:
+        chunk = cf_net_recv(fd, 4096)
+        if len(chunk) == 0:
+            break
+        data += chunk
+    cf_net_close(fd)
+    return data
+
+
+def body_of(raw: str) -> str:
+    marker = raw.find("\r\n\r\n")
+    if marker < 0:
+        return ""
+    return core.slice(raw, marker + 4, len(raw))
+
+
+def post(url: str, payload: str) -> str:
+    rest = url
+    if rest.startswith("http://"):
+        rest = core.slice(rest, 7, len(rest))
+    slash = rest.find("/")
+    hostport = rest
+    path = "/"
+    if slash >= 0:
+        hostport = core.slice(rest, 0, slash)
+        path = core.slice(rest, slash, len(rest))
+    host = hostport
+    port = 80
+    colon = hostport.find(":")
+    if colon >= 0:
+        host = core.slice(hostport, 0, colon)
+        port = int(core.slice(hostport, colon + 1, len(hostport)))
+    fd = cf_net_connect(host, port)
+    request = ("POST " + path + " HTTP/1.1\r\nHost: " + host +
+               "\r\nContent-Type: application/json\r\nContent-Length: " + str(len(payload)) +
+               "\r\nConnection: close\r\n\r\n" + payload)
+    cf_net_send(fd, request)
+    data = ""
+    while True:
+        chunk = cf_net_recv(fd, 4096)
+        if len(chunk) == 0:
+            break
+        data += chunk
+    cf_net_close(fd)
+    return body_of(data)

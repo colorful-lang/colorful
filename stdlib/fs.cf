@@ -1,0 +1,54 @@
+### Colorful standard library: fs
+### Short prefix: fs.read, fs.write, fs.exists, fs.list_dir, fs.remove
+
+module fs
+
+extern def cf_io_read(path: str) -> str
+extern def cf_io_write(path: str, data: str) -> int
+extern def cf_fs_exists(path: str) -> int
+extern def cf_fs_list_dir(path: str) -> list[str]
+extern def cf_fs_remove(path: str) -> int
+extern def cf_fs_mkdir(path: str) -> int
+
+
+def read(path: str) -> str:
+    return cf_io_read(path)
+
+
+def write(path: str, data: str) -> int:
+    return cf_io_write(path, data)
+
+
+def exists(path: str) -> bool:
+    return cf_fs_exists(path) != 0
+
+
+def list_dir(path: str) -> list[str]:
+    return cf_fs_list_dir(path)
+
+
+def remove(path: str) -> bool:
+    return cf_fs_remove(path) != 0
+
+
+def mkdir(path: str) -> bool:
+    return cf_fs_mkdir(path) != 0
+
+
+### copy a file through the runtime string API (value semantics, no handles)
+def copy(source: str, target: str) -> int:
+    data = cf_io_read(source)
+    return cf_io_write(target, data)
+
+
+def count_files(path: str) -> int:
+    return len(cf_fs_list_dir(path))
+
+
+### filter a directory listing by suffix
+def list_with_suffix(path: str, suffix: str) -> list[str]:
+    out = []
+    for name in cf_fs_list_dir(path):
+        if name.endswith(suffix):
+            out.append(name)
+    return out

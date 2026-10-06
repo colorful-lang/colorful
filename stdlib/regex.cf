@@ -1,0 +1,168 @@
+### Colorful standard library: regex
+### Short prefix: regex.match(pattern, text), regex.find(pattern, text),
+###              regex.replace(pattern, text, replacement)
+###
+### The engine is written in Colorful and compiled to machine code like any
+### other function - there is no interpreted pattern language and no runtime
+### regex library. Supported syntax:
+###   literal characters, `.` and `?` (any one character), `*` (zero or more of
+###   the previous element), `^` (anchor at the start), `$` (anchor at the end),
+###   `\d` `\w` `\s` character classes, `\x` to escape a metacharacter.
+
+module regex
+
+record Pattern:
+    source: str
+    anchored: bool
+
+
+def compile(pattern: str) -> Pattern:
+    anchored = False
+    source = pattern
+    if pattern.startswith("^"):
+        anchored = True
+        source = core.slice(pattern, 1, len(pattern))
+    return Pattern(source, anchored)
+
+
+def pat_len(self_pattern: str, pi: int) -> int:
+    if self_pattern[pi] == "\\" and pi + 1 < len(self_pattern):
+        return 2
+    return 1
+
+
+def cmatch(self_pattern: str, pi: int, ch: str) -> bool:
+    if len(ch) == 0:
+        return False
+    c = self_pattern[pi]
+    if c == "." or c == "?":
+        return True
+    if c == "\\":
+        if pi + 1 >= len(self_pattern):
+            return False
+        e = self_pattern[pi + 1]
+        if e == "d":
+            return ch >= "0" and ch <= "9"
+        if e == "w":
+            if ch >= "a" and ch <= "z":
+                return True
+            if ch >= "A" and ch <= "Z":
+                return True
+            if ch >= "0" and ch <= "9":
+                return True
+            return ch == "_"
+        if e == "s":
+            return ch == " " or ch == "\t" or ch == "\n"
+        return ch == e
+    return c == ch
+
+
+### Recursive matcher (Kernighan style): `match_here` succeeds as soon as the
+### pattern is exhausted, so `match`/`find` have substring semantics while `$`
+### forces the end of the text. Recursion is compiled to plain native calls.
+def match_here(src: str, pi: int, text: str, ti: int) -> bool:
+    if pi >= len(src):
+        return True
+    step = pat_len(src, pi)
+    if pi + step < len(src) and src[pi + step] == "*":
+        return match_star(src, pi, text, ti)
+    if pi + step < len(src) and src[pi + step] == "+":
+        return match_plus(src, pi, text, ti)
+    if src[pi] == "$":
+        return ti >= len(text)
+    if ti < len(text) and cmatch(src, pi, text[ti]):
+        return match_here(src, pi + step, text, ti + 1)
+    return False
+
+
+def match_star(src: str, pi: int, text: str, ti: int) -> bool:
+    step = pat_len(src, pi)
+    if match_here(src, pi + step + 1, text, ti):
+        return True
+    if ti < len(text) and cmatch(src, pi, text[ti]):
+        return match_star(src, pi, text, ti + 1)
+    return False
+
+
+### one or more: the first occurrence must match, the rest behaves like `*`
+def match_plus(src: str, pi: int, text: str, ti: int) -> bool:
+    if ti < len(text) and cmatch(src, pi, text[ti]):
+        return match_star(src, pi, text, ti + 1)
+    return False
+
+
+def Pattern.is_match(self, text: str, start: int) -> bool:
+    return match_here(self.source, 0, text, start)
+
+
+def Pattern.matches(self, text: str) -> bool:
+    if self.anchored:
+        return self.is_match(text, 0)
+    i = 0
+    while i <= len(text):
+        if self.is_match(text, i):
+            return True
+        i += 1
+    return False
+
+
+def match(pattern: str, text: str) -> bool:
+    return compile(pattern).matches(text)
+
+
+def find(pattern: str, text: str) -> int:
+    p = compile(pattern)
+    if p.anchored:
+        if p.is_match(text, 0):
+            return 0
+        return -1
+    i = 0
+    while i <= len(text):
+        if p.is_match(text, i):
+            return i
+        i += 1
+    return -1
+
+
+def replace(pattern: str, text: str, replacement: str) -> str:
+    p = compile(pattern)
+    out = ""
+    i = 0
+    while i < len(text):
+        if p.is_match(text, i):
+            out += replacement
+            if i < len(text):
+                i += 1
+            else:
+                break
+        else:
+            out += text[i]
+            i += 1
+    return out
+
+
+def replace_all(pattern: str, text: str, replacement: str) -> str:
+    p = compile(pattern)
+    out = ""
+    i = 0
+    while i < len(text):
+        if p.is_match(text, i):
+            out += replacement
+            i += 1
+            while i < len(text) and p.is_match(text, i):
+                i += 1
+        else:
+            out += text[i]
+            i += 1
+    return out
+
+
+def find_all(pattern: str, text: str) -> list[str]:
+    p = compile(pattern)
+    out = []
+    i = 0
+    while i <= len(text):
+        if p.is_match(text, i):
+            out.append(text[i])
+        i += 1
+    return out

@@ -1,0 +1,173 @@
+### Colorful standard library: collections
+### Short prefix: collections.first(xs), collections.unique(xs), collections.group_count(words)
+###
+### Small, readable helpers over the list and dict builtins. The functions
+### without type annotations are generic: the compiler monomorphizes them for
+### every element type used at a call site, exactly like core.count_of. The ones
+### that take a `fn` argument call it once per element.
+###
+### Nothing here needs an import; `collections` is part of the standard library
+### and is always loaded.
+
+module collections
+
+
+### True when the sequence has no elements; works for lists and dicts.
+def is_empty(xs) -> bool:
+    return len(xs) == 0
+
+
+### The first element. The underlying list access is checked, so an empty list
+### raises instead of returning a nonsense value.
+def first(xs):
+    return xs[0]
+
+
+### The last element; raises on an empty list.
+def last(xs):
+    return xs[len(xs) - 1]
+
+
+### The first element, or `fallback` when the list is empty. Both must have the
+### same type, since Colorful has no union types.
+def first_or(xs, fallback):
+    if len(xs) == 0:
+        return fallback
+    return xs[0]
+
+
+### A reversed copy; the input list is left untouched.
+def reversed_copy(xs):
+    out = []
+    i = len(xs) - 1
+    while i >= 0:
+        out.append(xs[i])
+        i -= 1
+    return out
+
+
+### The distinct elements, in order of their first appearance.
+def unique(xs):
+    out = []
+    for x in xs:
+        if not out.contains(x):
+            out.append(x)
+    return out
+
+
+### How many elements satisfy `pred`.
+def count_where(xs, pred) -> int:
+    total = 0
+    for x in xs:
+        if pred(x):
+            total += 1
+    return total
+
+
+### True when at least one element satisfies `pred`.
+def any_of(xs, pred) -> bool:
+    for x in xs:
+        if pred(x):
+            return True
+    return False
+
+
+### True when every element satisfies `pred`; an empty list answers True.
+def all_of(xs, pred) -> bool:
+    for x in xs:
+        if not pred(x):
+            return False
+    return True
+
+
+### The index of the first element satisfying `pred`, or -1 when there is none.
+def index_where(xs, pred) -> int:
+    i = 0
+    for x in xs:
+        if pred(x):
+            return i
+        i += 1
+    return -1
+
+
+### Calls `fn` once per element and reports how many calls were made. Handy for
+### side effects, where `map` would build a list nobody reads.
+def each(xs, fn) -> int:
+    n = 0
+    for x in xs:
+        fn(x)
+        n += 1
+    return n
+
+
+### The elements satisfying `pred`. Same result as the `filter` builtin, but
+### usable wherever a function value is expected.
+def where(xs, pred):
+    out = []
+    for x in xs:
+        if pred(x):
+            out.append(x)
+    return out
+
+
+### 0.0 for an empty list rather than a division by zero.
+def average(xs: list[int]) -> float:
+    if len(xs) == 0:
+        return 0.0
+    return float(sum(xs)) / float(len(xs))
+
+
+### [smallest, largest]; [0, 0] for an empty list.
+def min_max(xs: list[int]) -> list[int]:
+    if len(xs) == 0:
+        return [0, 0]
+    return [min(xs), max(xs)]
+
+
+### How often each string occurs - word counting, tag histograms and the like.
+def group_count(xs: list[str]) -> dict[str, int]:
+    out = dict()
+    for x in xs:
+        if out.has(x):
+            out[x] = out[x] + 1
+        else:
+            out[x] = 1
+    return out
+
+
+### A new dict: the entries of `a`, overlaid by the entries of `b`.
+def combine(a: dict[str, int], b: dict[str, int]) -> dict[str, int]:
+    out = dict()
+    for k in a.keys():
+        out[k] = a[k]
+    for k in b.keys():
+        out[k] = b[k]
+    return out
+
+
+### The keys of a string-keyed dict, sorted.
+def sorted_keys(d: dict[str, int]) -> list[str]:
+    return sorted(d.keys())
+
+
+### Flattens a list of string lists into a single list.
+def flatten_str(xs: list[list[str]]) -> list[str]:
+    out = []
+    for inner in xs:
+        for s in inner:
+            out.append(s)
+    return out
+
+
+### Pairs two string lists element by element, stopping at the shorter one.
+### Each pair is a two element list, since Colorful has no tuples.
+def zip_str(a: list[str], b: list[str]) -> list[list[str]]:
+    out = []
+    n = len(a)
+    if len(b) < n:
+        n = len(b)
+    i = 0
+    while i < n:
+        out.append([a[i], b[i]])
+        i += 1
+    return out

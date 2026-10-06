@@ -1,0 +1,141 @@
+### Colorful standard library: core
+### Always loaded. The builtins (print, len, range, str, int, float, bool,
+### list, dict, sum, min, max, abs, sorted, map, filter) live in the compiler
+### and are therefore globally available without any import; this module adds
+### the helpers that are written in Colorful itself.
+
+module core
+
+extern def cf_str_slice(text: str, start: int, stop: int) -> str
+extern def cf_str_chr(code: int) -> str
+extern def cf_rt_arg_count() -> int
+extern def cf_rt_arg(index: int) -> str
+
+
+### Number of command line arguments (the program name is not included).
+def arg_count() -> int:
+    return cf_rt_arg_count()
+
+
+### One command line argument; "" when the index is out of range.
+def arg(index: int) -> str:
+    if index < 0:
+        return ""
+    if index >= cf_rt_arg_count():
+        return ""
+    return cf_rt_arg(index)
+
+
+### Every command line argument.
+def args() -> list[str]:
+    out = []
+    i = 0
+    n = cf_rt_arg_count()
+    while i < n:
+        out.append(cf_rt_arg(i))
+        i += 1
+    return out
+
+
+### `text[from:to]` is spelled `core.slice(text, from, to)` in Colorful 0.1
+def slice(text: str, start: int, stop: int) -> str:
+    return cf_str_slice(text, start, stop)
+
+
+### one UTF-8 code point as a string
+def chr(code: int) -> str:
+    return cf_str_chr(code)
+
+
+def repeat(text: str, times: int) -> str:
+    out = ""
+    i = 0
+    while i < times:
+        out += text
+        i += 1
+    return out
+
+
+def join_all(parts: list[str], sep: str) -> str:
+    return sep.join(parts)
+
+
+def reverse(text: str) -> str:
+    out = ""
+    i = len(text) - 1
+    while i >= 0:
+        out += text[i]
+        i -= 1
+    return out
+
+
+def is_even(n: int) -> bool:
+    return n % 2 == 0
+
+
+def is_odd(n: int) -> bool:
+    return n % 2 != 0
+
+
+def clamp(value: int, low: int, high: int) -> int:
+    if value < low:
+        return low
+    if value > high:
+        return high
+    return value
+
+
+def clamp_float(value: float, low: float, high: float) -> float:
+    if value < low:
+        return low
+    if value > high:
+        return high
+    return value
+
+
+### generic helper: returns the number of occurrences of `item` inside `xs`.
+### The compiler monomorphizes it for every element type used at a call site.
+def count_of(xs, item) -> int:
+    total = 0
+    for x in xs:
+        if x == item:
+            total += 1
+    return total
+
+
+### generic helper: applies `fn` to every element, like the map builtin, but
+### written in Colorful to show how the library itself is plain Colorful code.
+def transform(xs, fn):
+    out = []
+    for x in xs:
+        out.append(fn(x))
+    return out
+
+
+def take(xs: list[int], n: int) -> list[int]:
+    out = []
+    i = 0
+    while i < n and i < len(xs):
+        out.append(xs[i])
+        i += 1
+    return out
+
+
+def swap_first_two(xs: list[int]) -> list[int]:
+    if len(xs) < 2:
+        return xs
+    a = xs[0]
+    xs[0] = xs[1]
+    xs[1] = a
+    return xs
+
+
+def sum_range(lo: int, hi: int) -> int:
+    total = 0
+    for i in range(lo, hi):
+        total += i
+    return total
+
+
+def format_list(xs: list[str], sep: str) -> str:
+    return sep.join(xs)

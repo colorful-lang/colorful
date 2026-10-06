@@ -1,0 +1,55 @@
+### Colorful standard library: net
+### Short prefix: fd = net.connect("example.com", 80)
+###
+### Thin wrappers over the runtime's TCP primitives, so applications (and the
+### http module) can talk to a socket without declaring C symbols themselves.
+### Every call may raise, because the native side reports failures as
+### exceptions:
+###
+###     try:
+###         fd = net.connect(host, port)
+###         net.send(fd, "GET / HTTP/1.0\r\n\r\n")
+###         reply = net.recv(fd, 4096)
+###         net.close(fd)
+###     except IoError as e:
+###         print("connection failed:", e)
+###
+### Sockets are blocking and single threaded in 0.1.
+
+module net
+
+extern def cf_net_listen(port: int) -> int
+extern def cf_net_connect(host: str, port: int) -> int
+extern def cf_net_accept(fd: int) -> int
+extern def cf_net_recv(fd: int, maxBytes: int) -> str
+extern def cf_net_send(fd: int, data: str) -> int
+extern def cf_net_close(fd: int)
+
+
+### A listening socket on `port`; pass the handle to accept.
+def listen(port: int) -> int:
+    return cf_net_listen(port)
+
+
+### Connects to `host:port` and returns the socket handle.
+def connect(host: str, port: int) -> int:
+    return cf_net_connect(host, port)
+
+
+### Accepts one connection from a listening socket.
+def accept(fd: int) -> int:
+    return cf_net_accept(fd)
+
+
+### Reads up to `maxBytes` bytes as a string; "" means the peer closed.
+def recv(fd: int, maxBytes: int) -> str:
+    return cf_net_recv(fd, maxBytes)
+
+
+### Sends the whole string and reports how many bytes went out.
+def send(fd: int, data: str) -> int:
+    return cf_net_send(fd, data)
+
+
+def close(fd: int):
+    cf_net_close(fd)

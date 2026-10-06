@@ -1,0 +1,84 @@
+### Colorful standard library: test
+### Short prefix: test.assert(x > 0, "x must be positive")
+### colortest drives this module: every function whose name starts with
+### `test_` is a test case, and the exit status reports the failure count.
+
+module test
+
+extern def cf_test_begin(name: str)
+extern def cf_test_ok(cond: bool, what: str)
+extern def cf_test_failures() -> int
+extern def cf_rt_shutdown(status: int)
+
+
+def assert(cond: bool, what: str):
+    cf_test_ok(cond, what)
+
+
+def assert_equal_int(a: int, b: int, what: str):
+    if a == b:
+        cf_test_ok(True, what)
+    else:
+        cf_test_ok(False, what + ": expected " + str(b) + ", found " + str(a))
+
+
+def assert_equal_str(a: str, b: str, what: str):
+    if a == b:
+        cf_test_ok(True, what)
+    else:
+        cf_test_ok(False, what + ": expected '" + b + "', found '" + a + "'")
+
+
+def assert_equal_float(a: float, b: float, what: str):
+    diff = a - b
+    if diff < 0.0:
+        diff = -diff
+    if diff < 0.000001:
+        cf_test_ok(True, what)
+    else:
+        cf_test_ok(False, what + ": expected " + str(b) + ", found " + str(a))
+
+
+def assert_true(cond: bool, what: str):
+    cf_test_ok(cond, what)
+
+
+def assert_false(cond: bool, what: str):
+    cf_test_ok(not cond, what)
+
+
+def assert_equal_bool(a: bool, b: bool, what: str):
+    cf_test_ok(a == b, what)
+
+
+def assert_contains(haystack: str, needle: str, what: str):
+    cf_test_ok(haystack.contains(needle), what)
+
+
+### run a test function and report, returning the number of failures so far
+def check(name: str, fn: fn() -> bool):
+    cf_test_begin(name)
+    result = fn()
+    if result:
+        cf_test_ok(True, name)
+    else:
+        cf_test_ok(False, name)
+
+
+def failures() -> int:
+    return cf_test_failures()
+
+
+### called once by the driver that colortest generates: prints the summary and
+### terminates the process with a status that reports the failures
+def finish():
+    failed = cf_test_failures()
+    if failed == 0:
+        print("all tests passed")
+    else:
+        print("failed checks:", failed)
+        cf_rt_shutdown(1)
+
+
+def section(name: str):
+    print("-- " + name)

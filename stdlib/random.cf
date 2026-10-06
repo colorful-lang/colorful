@@ -1,0 +1,42 @@
+### Colorful standard library: random
+### Short prefix: random.int(1, 7), random.float(), random.choice(xs)
+
+module random
+
+extern def cf_random_seed(seed: int)
+extern def cf_random_int(lo: int, hi: int) -> int
+extern def cf_random_float() -> float
+
+
+def seed(value: int):
+    cf_random_seed(value)
+
+
+def int(lo: int, hi: int) -> int:
+    return cf_random_int(lo, hi)
+
+
+def float() -> float:
+    return cf_random_float()
+
+
+### generic: pick one element of a list (monomorphized per element type)
+def choice(xs):
+    if len(xs) == 0:
+        return xs[0]
+    return xs[cf_random_int(0, len(xs))]
+
+
+def shuffle(xs: list[int]) -> list[int]:
+    i = len(xs) - 1
+    while i > 0:
+        j = cf_random_int(0, i + 1)
+        tmp = xs[i]
+        xs[i] = xs[j]
+        xs[j] = tmp
+        i -= 1
+    return xs
+
+
+def bool() -> bool:
+    return cf_random_int(0, 2) == 1

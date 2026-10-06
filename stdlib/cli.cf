@@ -1,0 +1,82 @@
+### Colorful standard library: cli
+### Short prefix: cli.parse(core.args()).get("name", "world")
+###
+### A small argument parser. `--name=value` becomes a value, a bare `--name` (or
+### `-n`) becomes a switch, and anything else is positional:
+###
+###     def main():
+###         opts = cli.parse(core.args())
+###         name = opts.get("name", "world")
+###         verbose = opts.flag("verbose")
+###         for file in opts.positional:
+###             ...
+###
+### Colorful has no keyword arguments, so everything comes back inside one
+### Options value instead of a long parameter list.
+
+module cli
+
+
+record Options:
+    values: dict[str, str]
+    switches: list[str]
+    positional: list[str]
+
+
+### Parses a list of arguments; normally the one from core.args().
+def parse(argv: list[str]) -> Options:
+    values = dict()
+    switches = []
+    positional = []
+    for a in argv:
+        if a.startswith("--"):
+            body = core.slice(a, 2, len(a))
+            eq = body.find("=")
+            if eq >= 0:
+                name = core.slice(body, 0, eq)
+                value = core.slice(body, eq + 1, len(body))
+                values[name] = value
+            else:
+                switches.append(body)
+        elif a.startswith("-") and len(a) > 1:
+            switches.append(core.slice(a, 1, len(a)))
+        else:
+            positional.append(a)
+    return Options(values, switches, positional)
+
+
+### The value of `--name=value`, or `fallback` when it was not given.
+def Options.get(self, name: str, fallback: str) -> str:
+    if self.values.has(name):
+        return self.values[name]
+    return fallback
+
+
+### True when a value was given for `name`.
+def Options.has(self, name: str) -> bool:
+    return self.values.has(name)
+
+
+### True when the switch was present, with or without its leading dashes.
+def Options.flag(self, name: str) -> bool:
+    return self.switches.contains(name)
+
+
+### The value of `name` read as an int, or `fallback` when it was not given.
+### A value that is not a number raises, like int("...") would.
+def Options.int_of(self, name: str, fallback: int) -> int:
+    if not self.values.has(name):
+        return fallback
+    return int(self.values[name])
+
+
+### The value of `name` read as a float, or `fallback` when it was not given.
+def Options.float_of(self, name: str, fallback: float) -> float:
+    if not self.values.has(name):
+        return fallback
+    return float(self.values[name])
+
+
+### How many positional arguments there are.
+def Options.count(self) -> int:
+    return len(self.positional)

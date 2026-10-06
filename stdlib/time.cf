@@ -1,0 +1,40 @@
+### Colorful standard library: time
+### Short prefix: time.now(), time.sleep(100), time.format(ts, "%Y-%m-%d")
+
+module time
+
+extern def cf_time_now() -> float
+extern def cf_time_millis() -> int
+extern def cf_time_sleep(millis: int)
+extern def cf_time_format(seconds: float, fmt: str) -> str
+
+
+def now() -> float:
+    return cf_time_now()
+
+
+def millis() -> int:
+    return cf_time_millis()
+
+
+def sleep(millis: int):
+    cf_time_sleep(millis)
+
+
+def format(seconds: float, fmt: str) -> str:
+    return cf_time_format(seconds, fmt)
+
+
+def date(seconds: float) -> str:
+    return cf_time_format(seconds, "%Y-%m-%d")
+
+
+def clock(seconds: float) -> str:
+    return cf_time_format(seconds, "%H:%M:%S")
+
+
+def ttl(deadlineMillis: int) -> int:
+    left = deadlineMillis - cf_time_millis()
+    if left < 0:
+        return 0
+    return left

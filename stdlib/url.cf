@@ -1,0 +1,96 @@
+### Colorful standard library: url
+### Short prefix: u = url.parse("https://example.com:8080/a/b?q=1")
+###
+### Splits a URL into its parts and reads its query string, so callers stop
+### slicing strings by hand (which is what http.get had to do before). It does
+### not percent-decode: that needs byte level escapes the 0.1 runtime does not
+### expose yet, so the pieces are returned exactly as they were written.
+
+module url
+
+
+record Url:
+    scheme: str
+    host: str
+    port: int
+    path: str
+    query: str
+
+
+### Splits scheme://host:port/path?query. Missing pieces become "", 0 or "/".
+def parse(text: str) -> Url:
+    scheme = ""
+    rest = text
+    i = rest.find("://")
+    if i >= 0:
+        scheme = core.slice(rest, 0, i)
+        rest = core.slice(rest, i + 3, len(rest))
+    authority = rest
+    tail = ""
+    j = rest.find("/")
+    if j >= 0:
+        authority = core.slice(rest, 0, j)
+        tail = core.slice(rest, j, len(rest))
+    query = ""
+    k = tail.find("?")
+    if k >= 0:
+        query = core.slice(tail, k + 1, len(tail))
+        tail = core.slice(tail, 0, k)
+    path = tail
+    if path == "":
+        path = "/"
+    host = authority
+    port = 0
+    c = authority.find(":")
+    if c >= 0:
+        host = core.slice(authority, 0, c)
+        port = int(core.slice(authority, c + 1, len(authority)))
+    return Url(scheme, host, port, path, query)
+
+
+### The well known port for a scheme, or 0 when it has none.
+def default_port(scheme: str) -> int:
+    if scheme == "https":
+        return 443
+    if scheme == "http":
+        return 80
+    return 0
+
+
+### The port to connect to: the one in the URL, else the scheme default.
+def Url.endpoint_port(self) -> int:
+    if self.port > 0:
+        return self.port
+    return default_port(self.scheme)
+
+
+### The path sent in an HTTP request line.
+def Url.request_target(self) -> str:
+    return self.path
+
+
+### The query string as name -> value pairs; a bare "?debug" maps to "".
+def query_params(query: str) -> dict[str, str]:
+    out = dict()
+    if query == "":
+        return out
+    for pair in query.split("&"):
+        eq = pair.find("=")
+        if eq >= 0:
+            out[core.slice(pair, 0, eq)] = core.slice(pair, eq + 1, len(pair))
+        else:
+            out[pair] = ""
+    return out
+
+
+### The query parameter names, sorted.
+def Url.param_names(self) -> list[str]:
+    return sorted(query_params(self.query).keys())
+
+
+### The value of one query parameter, or `fallback` when it is absent.
+def Url.param(self, name: str, fallback: str) -> str:
+    params = query_params(self.query)
+    if params.has(name):
+        return params[name]
+    return fallback
