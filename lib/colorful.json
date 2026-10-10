@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "kind": "colorful-library",
   "abi": "c11-colorful-0.1",
-  "built": "2026-10-05T21:55:21",
+  "built": "2026-10-10T16:51:01",
   "nativeStatic": "libcolorful.lib",
   "shared": { "dll": "colorful.dll", "importLibrary": "colorful.lib" },
   "moduleArchive": "libcolorful.cll",
